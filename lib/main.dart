@@ -21,11 +21,27 @@ ThemeData _theme(Brightness b, AppState s) {
     brightness: b,
   );
   final c = s.textColor == null ? null : Color(s.textColor!);
-  final tt = base.textTheme.apply(
-    bodyColor: c,
-    displayColor: c,
-    fontWeightDelta: s.bold ? 3 : 0,
-  );
+  var tt = base.textTheme.apply(bodyColor: c, displayColor: c);
+  if (s.bold) {
+    TextStyle? b(TextStyle? st) => st?.copyWith(fontWeight: FontWeight.w800);
+    tt = tt.copyWith(
+      displayLarge: b(tt.displayLarge),
+      displayMedium: b(tt.displayMedium),
+      displaySmall: b(tt.displaySmall),
+      headlineLarge: b(tt.headlineLarge),
+      headlineMedium: b(tt.headlineMedium),
+      headlineSmall: b(tt.headlineSmall),
+      titleLarge: b(tt.titleLarge),
+      titleMedium: b(tt.titleMedium),
+      titleSmall: b(tt.titleSmall),
+      bodyLarge: b(tt.bodyLarge),
+      bodyMedium: b(tt.bodyMedium),
+      bodySmall: b(tt.bodySmall),
+      labelLarge: b(tt.labelLarge),
+      labelMedium: b(tt.labelMedium),
+      labelSmall: b(tt.labelSmall),
+    );
+  }
   return base.copyWith(textTheme: tt);
 }
 
