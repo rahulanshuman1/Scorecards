@@ -1,4 +1,4 @@
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' as xl;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'app_state.dart';
@@ -7,12 +7,20 @@ String _cellText(dynamic v) {
   if (v == null) return '';
   try {
     final inner = (v as dynamic).value;
+    if (inner == null) return '';
     if (inner is String) return inner;
-    if (inner is TextSpan) return inner.toPlainText();
     if (inner is double && inner == inner.truncateToDouble()) {
       return inner.toInt().toString();
     }
-    if (inner != null) return inner.toString();
+    if (inner is num || inner is bool) return inner.toString();
+    // rich-text cell (TextSpan from the excel package)
+    final t = (inner as dynamic).text;
+    if (t is String && t.isNotEmpty) return t;
+    final ch = (inner as dynamic).children;
+    if (ch is List) {
+      return ch.map((c) => ((c as dynamic).text ?? '').toString()).join();
+    }
+    return inner.toString();
   } catch (_) {}
   return v.toString();
 }
@@ -21,7 +29,7 @@ String _cellText(dynamic v) {
 ///  1) One sheet with header row "Team" | "Player" (blank Team cell = same team as above)
 ///  2) One sheet per team: sheet name = team name, players in column A
 Map<String, List<String>> parseRoster(List<int> bytes) {
-  final ex = Excel.decodeBytes(bytes);
+  final ex = xl.Excel.decodeBytes(bytes);
   final out = <String, List<String>>{};
 
   void add(String team, String player) {
