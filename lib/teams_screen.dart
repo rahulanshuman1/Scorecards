@@ -32,7 +32,7 @@ class TeamsScreen extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: () => importRosterFlow(context),
                   icon: const Icon(Icons.upload_file),
-                  label: const Text('Import from Excel (.xlsx)'),
+                  label: const Text('Import from Excel (.xlsx) or CSV'),
                 ),
                 const SizedBox(height: 12),
                 const Card(
