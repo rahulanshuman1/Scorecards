@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'models.dart';
+import 'settings_screen.dart';
 
 class FootballScreen extends StatefulWidget {
   final FootballMatch match;
@@ -63,10 +64,34 @@ class _FootballScreenState extends State<FootballScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('$label – ${team == 0 ? m.teamA : m.teamB}'),
-        content: TextField(
-          controller: c,
-          autofocus: true,
-          decoration: InputDecoration(labelText: type == 'sub' ? 'Player in / out' : 'Player name / number'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: c,
+              autofocus: true,
+              decoration: InputDecoration(labelText: type == 'sub' ? 'Player in / out' : 'Player name / number'),
+            ),
+            if ((team == 0 ? m.playersA : m.playersB).isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Builder(
+                  builder: (ctx) => Wrap(spacing: 6, runSpacing: 4, children: [
+                    for (final p in (team == 0 ? m.playersA : m.playersB))
+                      ActionChip(
+                        label: Text(p),
+                        onPressed: () {
+                          if (type == 'sub') {
+                            c.text = c.text.isEmpty ? p : '${c.text} / $p';
+                          } else {
+                            c.text = p;
+                            Navigator.pop(ctx, true);
+                          }
+                        },
+                      ),
+                  ]),
+                ),
+              ),
+          ]),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -105,7 +130,10 @@ class _FootballScreenState extends State<FootballScreen> {
     final mm = (m.seconds ~/ 60).toString().padLeft(2, '0');
     final ss = (m.seconds % 60).toString().padLeft(2, '0');
     return Scaffold(
-      appBar: AppBar(title: Text('${m.teamA} vs ${m.teamB}')),
+      appBar: AppBar(
+        title: Text('${m.teamA} vs ${m.teamB}'),
+        actions: displayActions(context),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),
@@ -119,8 +147,11 @@ class _FootballScreenState extends State<FootballScreen> {
                   const SizedBox(height: 8),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                     Flexible(child: Text(m.teamA, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18))),
-                    Text('${m.score(0)} - ${m.score(1)}',
-                        style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('${m.score(0)} - ${m.score(1)}',
+                          style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold)),
+                    ),
                     Flexible(child: Text(m.teamB, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18))),
                   ]),
                 ]),

@@ -214,6 +214,7 @@ class CricketMatch extends SportMatch {
   List<Innings> innings;
   int current; // 0 or 1
   bool finished;
+  List<String> playersA, playersB;
 
   CricketMatch({
     required String id,
@@ -224,7 +225,11 @@ class CricketMatch extends SportMatch {
     List<Innings>? innings,
     this.current = 0,
     this.finished = false,
+    List<String>? playersA,
+    List<String>? playersB,
   })  : innings = innings ?? [Innings(), Innings()],
+        playersA = playersA ?? [],
+        playersB = playersB ?? [],
         super(id, teamA, teamB, date ?? DateTime.now());
 
   @override
@@ -232,6 +237,8 @@ class CricketMatch extends SportMatch {
 
   String get battingTeam => current == 0 ? teamA : teamB;
   String get bowlingTeam => current == 0 ? teamB : teamA;
+  List<String> get battingPlayers => current == 0 ? playersA : playersB;
+  List<String> get bowlingPlayers => current == 0 ? playersB : playersA;
   Innings get now => innings[current];
   int get target => innings[0].runs + 1;
 
@@ -320,6 +327,8 @@ class CricketMatch extends SportMatch {
         'overs': overs,
         'current': current,
         'finished': finished,
+        'pA': playersA,
+        'pB': playersB,
         'innings': innings.map((i) => i.toJson()).toList(),
       };
 
@@ -331,6 +340,8 @@ class CricketMatch extends SportMatch {
         overs: j['overs'],
         current: j['current'],
         finished: j['finished'],
+        playersA: List<String>.from(j['pA'] ?? const []),
+        playersB: List<String>.from(j['pB'] ?? const []),
         innings: (j['innings'] as List)
             .map((i) => Innings.fromJson(Map<String, dynamic>.from(i)))
             .toList(),
@@ -356,6 +367,7 @@ class FootballMatch extends SportMatch {
   int seconds; // elapsed match time
   int period; // 1,2 = halves, 3,4 = extra time
   bool finished;
+  List<String> playersA, playersB;
 
   FootballMatch({
     required String id,
@@ -366,7 +378,11 @@ class FootballMatch extends SportMatch {
     this.seconds = 0,
     this.period = 1,
     this.finished = false,
+    List<String>? playersA,
+    List<String>? playersB,
   })  : events = events ?? [],
+        playersA = playersA ?? [],
+        playersB = playersB ?? [],
         super(id, teamA, teamB, date ?? DateTime.now());
 
   @override
@@ -400,6 +416,8 @@ class FootballMatch extends SportMatch {
         'seconds': seconds,
         'period': period,
         'finished': finished,
+        'pA': playersA,
+        'pB': playersB,
         'events': events.map((e) => e.toJson()).toList(),
       };
 
@@ -411,6 +429,8 @@ class FootballMatch extends SportMatch {
         seconds: j['seconds'],
         period: j['period'],
         finished: j['finished'],
+        playersA: List<String>.from(j['pA'] ?? const []),
+        playersB: List<String>.from(j['pB'] ?? const []),
         events: (j['events'] as List)
             .map((e) => FootballEvent.fromJson(Map<String, dynamic>.from(e)))
             .toList(),

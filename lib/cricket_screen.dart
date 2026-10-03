@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'models.dart';
+import 'settings_screen.dart';
 
 class CricketScreen extends StatefulWidget {
   final CricketMatch match;
@@ -46,7 +47,7 @@ class _CricketScreenState extends State<CricketScreen> {
 
         return AlertDialog(
           title: Text(title),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextField(
               controller: c,
               autofocus: true,
@@ -62,7 +63,7 @@ class _CricketScreenState extends State<CricketScreen> {
                     ActionChip(label: Text(o), onPressed: () => Navigator.pop(ctx, o)),
                 ]),
               ),
-          ]),
+          ])),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Later')),
             FilledButton(onPressed: () => submit(c.text), child: const Text('OK')),
@@ -72,6 +73,14 @@ class _CricketScreenState extends State<CricketScreen> {
     );
   }
 
+  List<String> _batOptions(Innings i) {
+    final used = i.batting.map((b) => b.name).toSet();
+    return m.battingPlayers.where((p) => !used.contains(p)).toList();
+  }
+
+  List<String> _bowlOptions(Innings i) =>
+      m.bowlingPlayers.isNotEmpty ? m.bowlingPlayers : i.bowlerNames;
+
   Future<void> _ensure() async {
     if (_asking) return;
     _asking = true;
@@ -79,15 +88,15 @@ class _CricketScreenState extends State<CricketScreen> {
       while (mounted && !m.finished && !m.inningsOver && m.now.needsPlayers) {
         final i = m.now;
         if (i.striker == null) {
-          final n = await _askName(i.balls.isEmpty ? 'Opening batter (striker)' : 'New batter', []);
+          final n = await _askName(i.balls.isEmpty ? 'Opening batter (striker)' : 'New batter', _batOptions(i));
           if (n == null) break;
           _do(() => i.striker = n);
         } else if (i.nonStriker == null) {
-          final n = await _askName(i.balls.isEmpty ? 'Opening batter (non-striker)' : 'New batter', []);
+          final n = await _askName(i.balls.isEmpty ? 'Opening batter (non-striker)' : 'New batter', _batOptions(i));
           if (n == null) break;
           _do(() => i.nonStriker = n);
         } else {
-          final n = await _askName('Bowler – ${m.bowlingTeam}', i.bowlerNames);
+          final n = await _askName('Bowler – ${m.bowlingTeam}', _bowlOptions(i));
           if (n == null) break;
           _do(() => i.bowler = n);
         }
@@ -170,14 +179,13 @@ class _CricketScreenState extends State<CricketScreen> {
     final enabled = !(m.finished || m.inningsOver || m.now.needsPlayers);
     return Padding(
       padding: const EdgeInsets.all(4),
-      child: SizedBox(
-        width: 72,
-        height: 52,
-        child: FilledButton(
-          style: color == null ? null : FilledButton.styleFrom(backgroundColor: color),
-          onPressed: enabled ? onTap : null,
-          child: Text(label, style: const TextStyle(fontSize: 17)),
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(72, 52),
+          backgroundColor: color,
         ),
+        onPressed: enabled ? onTap : null,
+        child: Text(label, style: const TextStyle(fontSize: 17)),
       ),
     );
   }
@@ -295,8 +303,14 @@ class _CricketScreenState extends State<CricketScreen> {
       appBar: AppBar(
         title: Text('${m.teamA} vs ${m.teamB}'),
         actions: [
-          IconButton(tooltip: 'Copy scorecard', onPressed: _copy, icon: const Icon(Icons.copy)),
-          IconButton(tooltip: 'PDF / Print', onPressed: _pdf, icon: const Icon(Icons.picture_as_pdf)),
+          ...displayActions(context),
+          PopupMenuButton<String>(
+            onSelected: (v) => v == 'pdf' ? _pdf() : _copy(),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'pdf', child: Text('Export PDF / Print')),
+              PopupMenuItem(value: 'copy', child: Text('Copy scorecard text')),
+            ],
+          ),
         ],
       ),
       body: Center(
@@ -309,8 +323,11 @@ class _CricketScreenState extends State<CricketScreen> {
                 child: Column(children: [
                   Text('${m.battingTeam} batting • Innings ${m.current + 1}'),
                   const SizedBox(height: 8),
-                  Text('${i.runs}/${i.wickets}',
-                      style: const TextStyle(fontSize: 56, fontWeight: FontWeight.bold)),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('${i.runs}/${i.wickets}',
+                        style: const TextStyle(fontSize: 56, fontWeight: FontWeight.bold)),
+                  ),
                   Text('Overs ${i.overs} / ${m.overs}   •   RR ${i.runRate.toStringAsFixed(2)}'),
                   if (m.current == 1 && !m.finished) ...[
                     const SizedBox(height: 6),
