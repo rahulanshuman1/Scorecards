@@ -79,6 +79,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<SportMatch> matches = [];
   bool loading = true;
+  bool selecting = false;
+  final Set<String> selected = {};
 
   @override
   void initState() {
@@ -102,6 +104,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _persist() => Store.save(matches);
+
+  void _toggle(String id) => setState(() {
+        if (!selected.remove(id)) selected.add(id);
+      });
+
+  void _delete(Set<String> ids) {
+    setState(() {
+      matches.removeWhere((m) => ids.contains(m.id));
+      selected.clear();
+      if (matches.isEmpty) selecting = false;
+    });
+    _persist();
+  }
+
+  Future<bool> _confirm(String title, String msg) async {
+    final r = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(msg),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    return r == true;
+  }
 
   Widget _teamField(TextEditingController c, String label) {
     final teams = AppState.I.roster.keys.toList();
@@ -176,6 +206,39 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Scorecard'),
         centerTitle: false,
         actions: [
+          if (matches.isNotEmpty && !selecting)
+            IconButton(
+              tooltip: 'Edit / delete history',
+              icon: const Icon(Icons.checklist),
+              onPressed: () => setState(() => selecting = true),
+            ),
+          if (selecting) ...[
+            IconButton(
+              tooltip: 'Select all',
+              icon: const Icon(Icons.select_all),
+              onPressed: () => setState(() => selected.addAll(matches.map((m) => m.id))),
+            ),
+            IconButton(
+              tooltip: 'Delete selected',
+              icon: const Icon(Icons.delete),
+              onPressed: selected.isEmpty
+                  ? null
+                  : () async {
+                      if (await _confirm('Delete ${selected.length} match(es)?',
+                          'This cannot be undone.')) {
+                        _delete(Set.of(selected));
+                      }
+                    },
+            ),
+            IconButton(
+              tooltip: 'Done',
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() {
+                selecting = false;
+                selected.clear();
+              }),
+            ),
+          ],
           IconButton(
             tooltip: 'Teams & players',
             icon: const Icon(Icons.groups),
@@ -211,9 +274,23 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Align(alignment: Alignment.centerLeft, child: Text('Match history', style: TextStyle(fontWeight: FontWeight.bold))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(children: [
+                const Expanded(
+                  child: Text('Match history', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                if (matches.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () async {
+                      if (await _confirm('Delete all match history?', 'This cannot be undone.')) {
+                        _delete(matches.map((m) => m.id).toSet());
+                      }
+                    },
+                    icon: const Icon(Icons.delete_sweep),
+                    label: const Text('Clear all'),
+                  ),
+              ]),
             ),
             Expanded(
               child: loading
@@ -224,20 +301,30 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemCount: matches.length,
                           itemBuilder: (_, i) {
                             final m = matches[i];
-                            return Dismissible(
-                              key: ValueKey(m.id),
-                              background: Container(color: Colors.red),
-                              onDismissed: (_) {
-                                matches.removeAt(i);
-                                _persist();
-                                setState(() {});
-                              },
-                              child: ListTile(
-                                leading: Icon(m.sport == 'cricket' ? Icons.sports_cricket : Icons.sports_soccer),
-                                title: Text(m.summary, maxLines: 3, overflow: TextOverflow.ellipsis),
-                                subtitle: Text(m.date.toString().substring(0, 16)),
-                                onTap: () => _open(m),
-                              ),
+                            final sel = selected.contains(m.id);
+                            return ListTile(
+                              selected: sel,
+                              leading: selecting
+                                  ? Checkbox(value: sel, onChanged: (_) => _toggle(m.id))
+                                  : Icon(m.sport == 'cricket' ? Icons.sports_cricket : Icons.sports_soccer),
+                              title: Text(m.summary, maxLines: 3, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(m.date.toString().substring(0, 16)),
+                              trailing: selecting
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Delete match',
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed: () async {
+                                        if (await _confirm('Delete this match?', m.summary)) {
+                                          _delete({m.id});
+                                        }
+                                      },
+                                    ),
+                              onTap: () => selecting ? _toggle(m.id) : _open(m),
+                              onLongPress: () => setState(() {
+                                selecting = true;
+                                selected.add(m.id);
+                              }),
                             );
                           },
                         ),
