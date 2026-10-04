@@ -92,6 +92,12 @@ class SettingsScreen extends StatelessWidget {
                   value: s.bold,
                   onChanged: s.setBold,
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Show Six / Four / Out animations'),
+                  value: s.animations,
+                  onChanged: s.setAnimations,
+                ),
                 const SizedBox(height: 8),
                 const Text('Background'),
                 const SizedBox(height: 6),

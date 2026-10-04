@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'events_anim.dart';
 import 'models.dart';
 import 'settings_screen.dart';
 
@@ -14,6 +15,7 @@ class FootballScreen extends StatefulWidget {
 class _FootballScreenState extends State<FootballScreen> {
   FootballMatch get m => widget.match;
   Timer? _timer;
+  final _fx = GlobalKey<EventOverlayState>();
   bool running = false;
 
   @override
@@ -102,6 +104,9 @@ class _FootballScreenState extends State<FootballScreen> {
     if (ok != true) return;
     setState(() => m.events.add(FootballEvent(type, team, c.text.trim(), m.minute)));
     widget.onChanged();
+    if (type == 'goal' || type == 'owngoal') _fx.currentState?.show([EventKind.goal]);
+    if (type == 'yellow') _fx.currentState?.show([EventKind.yellow]);
+    if (type == 'red') _fx.currentState?.show([EventKind.red]);
   }
 
   String _icon(String t) =>
@@ -134,7 +139,9 @@ class _FootballScreenState extends State<FootballScreen> {
         title: Text('${m.teamA} vs ${m.teamB}'),
         actions: displayActions(context),
       ),
-      body: Center(
+      body: EventOverlay(
+        key: _fx,
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),
           child: ListView(padding: const EdgeInsets.all(16), children: [
@@ -196,7 +203,7 @@ class _FootballScreenState extends State<FootballScreen> {
               ),
           ]),
         ),
-      ),
+      )),
     );
   }
 }

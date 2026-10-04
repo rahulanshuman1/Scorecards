@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'events_anim.dart';
 import 'models.dart';
 import 'settings_screen.dart';
 
@@ -16,6 +17,7 @@ class CricketScreen extends StatefulWidget {
 class _CricketScreenState extends State<CricketScreen> {
   CricketMatch get m => widget.match;
   bool _asking = false;
+  final _fx = GlobalKey<EventOverlayState>();
 
   @override
   void initState() {
@@ -31,6 +33,25 @@ class _CricketScreenState extends State<CricketScreen> {
   void _act(VoidCallback f) {
     _do(f);
     _ensure();
+  }
+
+  /// Add a ball and play the matching animation (Six, Four, No Ball, Wide, Out).
+  void _score(Ball b) {
+    final before = m.now.balls.length;
+    _act(() => m.addBall(b));
+    if (m.now.balls.length <= before) return;
+    final k = <EventKind>[];
+    if (b.wicket) {
+      k.add(EventKind.out);
+    } else {
+      if (b.extra == 'nb') k.add(EventKind.noBall);
+      if (b.extra == 'wd') k.add(EventKind.wide);
+      if (b.extra == null || b.extra == 'nb') {
+        if (b.runs == 6) k.add(EventKind.six);
+        if (b.runs == 4) k.add(EventKind.four);
+      }
+    }
+    _fx.currentState?.show(k);
   }
 
   // ---- player selection ----
@@ -128,7 +149,7 @@ class _CricketScreenState extends State<CricketScreen> {
         ],
       ),
     );
-    if (r != null) _act(() => m.addBall(Ball(extra: type, runs: r)));
+    if (r != null) _score(Ball(extra: type, runs: r));
   }
 
   Future<void> _wicket() async {
@@ -146,11 +167,11 @@ class _CricketScreenState extends State<CricketScreen> {
     );
     if (t == null) return;
     final runOut = t.startsWith('Run out');
-    _act(() => m.addBall(Ball(
-          wicket: true,
-          wkType: runOut ? 'run out' : t.toLowerCase(),
-          out: t == 'Run out (non-striker)' ? i.nonStriker : null,
-        )));
+    _score(Ball(
+      wicket: true,
+      wkType: runOut ? 'run out' : t.toLowerCase(),
+      out: t == 'Run out (non-striker)' ? i.nonStriker : null,
+    ));
   }
 
   // ---- export ----
@@ -313,7 +334,9 @@ class _CricketScreenState extends State<CricketScreen> {
           ),
         ],
       ),
-      body: Center(
+      body: EventOverlay(
+        key: _fx,
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),
           child: ListView(padding: const EdgeInsets.all(16), children: [
@@ -359,7 +382,7 @@ class _CricketScreenState extends State<CricketScreen> {
             const SizedBox(height: 8),
             Wrap(alignment: WrapAlignment.center, children: [
               for (final r in [0, 1, 2, 3, 4, 6])
-                _btn('$r', () => _act(() => m.addBall(Ball(runs: r)))),
+                _btn('$r', () => _score(Ball(runs: r))),
               _btn('Wd', () => _extra('wd'), color: Colors.orange),
               _btn('Nb', () => _extra('nb'), color: Colors.orange),
               _btn('Bye', () => _extra('b'), color: Colors.orange),
@@ -388,7 +411,7 @@ class _CricketScreenState extends State<CricketScreen> {
             for (int k = 0; k <= m.current; k++) _inningsCard(k),
           ]),
         ),
-      ),
+      )),
     );
   }
 }
