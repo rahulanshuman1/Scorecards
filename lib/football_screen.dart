@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'events_anim.dart';
+import 'export_xlsx.dart';
 import 'models.dart';
 import 'settings_screen.dart';
 
@@ -137,7 +138,14 @@ class _FootballScreenState extends State<FootballScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${m.teamA} vs ${m.teamB}'),
-        actions: displayActions(context),
+        actions: [
+          ...displayActions(context),
+          IconButton(
+            tooltip: 'Export Excel (.xlsx)',
+            icon: const Icon(Icons.table_view),
+            onPressed: () => exportMatch(context, m),
+          ),
+        ],
       ),
       body: EventOverlay(
         key: _fx,

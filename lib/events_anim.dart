@@ -45,18 +45,33 @@ class EventOverlayState extends State<EventOverlay> {
   final _pending = <EventKind>[];
   int _seq = 0;
 
-  void show(List<EventKind> kinds) {
-    if (!AppState.I.animations || kinds.isEmpty) return;
+  VoidCallback? _onDone;
+
+  /// Plays the animations in order. [onDone] runs after the last one finishes
+  /// (immediately if there is nothing to play).
+  void show(List<EventKind> kinds, {VoidCallback? onDone}) {
+    if (!AppState.I.animations || kinds.isEmpty) {
+      onDone?.call();
+      return;
+    }
     _pending
       ..clear()
       ..addAll(kinds);
+    _onDone = onDone;
     _next();
   }
 
   void _next() {
     if (!mounted) return;
+    if (_pending.isEmpty) {
+      setState(() => _current = null);
+      final cb = _onDone;
+      _onDone = null;
+      cb?.call();
+      return;
+    }
     setState(() {
-      _current = _pending.isEmpty ? null : _pending.removeAt(0);
+      _current = _pending.removeAt(0);
       _seq++;
     });
   }

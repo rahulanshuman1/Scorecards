@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'events_anim.dart';
+import 'export_xlsx.dart';
 import 'models.dart';
 import 'settings_screen.dart';
 
@@ -38,8 +39,11 @@ class _CricketScreenState extends State<CricketScreen> {
   /// Add a ball and play the matching animation (Six, Four, No Ball, Wide, Out).
   void _score(Ball b) {
     final before = m.now.balls.length;
-    _act(() => m.addBall(b));
-    if (m.now.balls.length <= before) return;
+    _do(() => m.addBall(b));
+    if (m.now.balls.length <= before) {
+      _ensure();
+      return;
+    }
     final k = <EventKind>[];
     if (b.wicket) {
       k.add(EventKind.out);
@@ -51,7 +55,13 @@ class _CricketScreenState extends State<CricketScreen> {
         if (b.runs == 4) k.add(EventKind.four);
       }
     }
-    _fx.currentState?.show(k);
+    // Show the animation first; ask for the new batter / bowler only afterwards.
+    final fx = _fx.currentState;
+    if (fx == null) {
+      _ensure();
+    } else {
+      fx.show(k, onDone: _ensure);
+    }
   }
 
   // ---- player selection ----
@@ -326,8 +336,17 @@ class _CricketScreenState extends State<CricketScreen> {
         actions: [
           ...displayActions(context),
           PopupMenuButton<String>(
-            onSelected: (v) => v == 'pdf' ? _pdf() : _copy(),
+            onSelected: (v) {
+              if (v == 'xlsx') {
+                exportMatch(context, m);
+              } else if (v == 'pdf') {
+                _pdf();
+              } else {
+                _copy();
+              }
+            },
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'xlsx', child: Text('Export Excel (.xlsx)')),
               PopupMenuItem(value: 'pdf', child: Text('Export PDF / Print')),
               PopupMenuItem(value: 'copy', child: Text('Copy scorecard text')),
             ],
