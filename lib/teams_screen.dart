@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'excel_import.dart';
@@ -28,6 +30,19 @@ Future<String?> _prompt(BuildContext context, String title, {String initial = ''
     },
   );
 }
+
+Future<void> _pickPhoto(AppState s, String team, String player) async {
+  final r = await FilePicker.platform.pickFiles(type: FileType.image);
+  if (r == null || r.files.isEmpty) return;
+  final p = r.files.single.path;
+  if (p != null) await s.setPhoto(team, player, p);
+}
+
+Widget _avatar(String? path, int n) => CircleAvatar(
+      radius: 20,
+      backgroundImage: path != null ? FileImage(File(path)) : null,
+      child: path == null ? Text('$n') : null,
+    );
 
 class TeamsScreen extends StatelessWidget {
   const TeamsScreen({super.key});
@@ -78,7 +93,8 @@ class TeamsScreen extends StatelessWidget {
                     child: Text(
                       'Excel format: first row = headers "Team" and "Player", one row per player. '
                       'Or one sheet per team (sheet name = team, players in column A).\n'
-                      'Tap a team to edit it. Changes apply to matches you start next; '
+                      'Tap a team to edit it. Tap a player\'s circle (or the camera icon) to set a photo, long-press the circle to remove it. '
+                      'Photos appear on the 50 / 100 / 150 animation. Changes apply to matches you start next; '
                       'matches already created keep their old names.',
                     ),
                   ),
@@ -98,9 +114,19 @@ class TeamsScreen extends StatelessWidget {
                         for (int i = 0; i < e.value.length; i++)
                           ListTile(
                             dense: true,
-                            leading: Text('${i + 1}'),
+                            leading: InkWell(
+                              onTap: () => _pickPhoto(s, e.key, e.value[i]),
+                              onLongPress: () => s.removePhoto(e.key, e.value[i]),
+                              customBorder: const CircleBorder(),
+                              child: _avatar(s.photoFor(e.key, e.value[i]), i + 1),
+                            ),
                             title: Text(e.value[i]),
                             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(
+                                tooltip: 'Set photo',
+                                icon: const Icon(Icons.add_a_photo),
+                                onPressed: () => _pickPhoto(s, e.key, e.value[i]),
+                              ),
                               IconButton(
                                 tooltip: 'Edit name',
                                 icon: const Icon(Icons.edit),

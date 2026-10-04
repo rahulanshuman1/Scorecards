@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'app_state.dart';
 import 'events_anim.dart';
 import 'export_xlsx.dart';
+import 'milestone_anim.dart';
 import 'models.dart';
 import 'settings_screen.dart';
 
@@ -55,12 +57,37 @@ class _CricketScreenState extends State<CricketScreen> {
         if (b.runs == 4) k.add(EventKind.four);
       }
     }
+    // Batter reached 50 / 100 / 150 / 200 ...
+    MilestoneInfo? milestone;
+    if (!b.wicket && b.batterRuns > 0 && b.batter != null) {
+      BatStat? st;
+      for (final x in m.now.batting) {
+        if (x.name == b.batter) st = x;
+      }
+      if (st != null) {
+        final after = st.runs;
+        final before = after - b.batterRuns;
+        if (after >= 50 && after ~/ 50 > before ~/ 50) {
+          milestone = MilestoneInfo(
+            name: st.name,
+            team: m.battingTeam,
+            runs: after,
+            balls: st.balls,
+            fours: st.fours,
+            sixes: st.sixes,
+            strikeRate: st.sr,
+            milestone: (after ~/ 50) * 50,
+            photoPath: AppState.I.photoFor(m.battingTeam, st.name),
+          );
+        }
+      }
+    }
     // Show the animation first; ask for the new batter / bowler only afterwards.
     final fx = _fx.currentState;
     if (fx == null) {
       _ensure();
     } else {
-      fx.show(k, onDone: _ensure);
+      fx.show(k, milestone: milestone, onDone: _ensure);
     }
   }
 

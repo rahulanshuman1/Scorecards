@@ -94,7 +94,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Show Six / Four / Out animations'),
+                  title: const Text('Show animations (Six, Four, Out, 50/100...)'),
                   value: s.animations,
                   onChanged: s.setAnimations,
                 ),

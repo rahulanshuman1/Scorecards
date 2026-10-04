@@ -1,8 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'app_state.dart';
+import 'milestone_anim.dart';
 
-enum EventKind { six, four, noBall, wide, out, goal, yellow, red }
+enum EventKind { six, four, noBall, wide, out, goal, yellow, red, milestone }
 
 class _Cfg {
   final String text, emoji;
@@ -29,7 +30,15 @@ _Cfg _cfgFor(EventKind k) {
       return const _Cfg('YELLOW CARD', '🟨', Color(0xFFF9A825), 0);
     case EventKind.red:
       return const _Cfg('RED CARD', '🟥', Color(0xFFB71C1C), 0);
+    case EventKind.milestone:
+      return const _Cfg('MILESTONE', '🏆', Color(0xFF7B1FA2), 0);
   }
+}
+
+class _Item {
+  final EventKind kind;
+  final MilestoneInfo? info;
+  _Item(this.kind, [this.info]);
 }
 
 /// Wrap a screen body with this; call `key.currentState?.show([...])`.
@@ -41,22 +50,24 @@ class EventOverlay extends StatefulWidget {
 }
 
 class EventOverlayState extends State<EventOverlay> {
-  EventKind? _current;
-  final _pending = <EventKind>[];
+  _Item? _current;
+  final _pending = <_Item>[];
   int _seq = 0;
-
   VoidCallback? _onDone;
 
-  /// Plays the animations in order. [onDone] runs after the last one finishes
-  /// (immediately if there is nothing to play).
-  void show(List<EventKind> kinds, {VoidCallback? onDone}) {
-    if (!AppState.I.animations || kinds.isEmpty) {
+  /// Plays the animations in order (then the milestone card, if any).
+  /// [onDone] runs after the last one finishes (immediately if nothing plays).
+  void show(List<EventKind> kinds, {MilestoneInfo? milestone, VoidCallback? onDone}) {
+    if (!AppState.I.animations || (kinds.isEmpty && milestone == null)) {
       onDone?.call();
       return;
     }
     _pending
       ..clear()
-      ..addAll(kinds);
+      ..addAll([
+        for (final k in kinds) _Item(k),
+        if (milestone != null) _Item(EventKind.milestone, milestone),
+      ]);
     _onDone = onDone;
     _next();
   }
@@ -78,12 +89,15 @@ class EventOverlayState extends State<EventOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    final cur = _current;
     return Stack(fit: StackFit.expand, children: [
       widget.child,
-      if (_current != null)
+      if (cur != null)
         Positioned.fill(
           child: IgnorePointer(
-            child: EventAnim(key: ValueKey(_seq), kind: _current!, onDone: _next),
+            child: (cur.kind == EventKind.milestone && cur.info != null)
+                ? MilestoneAnim(key: ValueKey(_seq), info: cur.info!, onDone: _next)
+                : EventAnim(key: ValueKey(_seq), kind: cur.kind, onDone: _next),
           ),
         ),
     ]);
