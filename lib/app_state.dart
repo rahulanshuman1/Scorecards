@@ -12,6 +12,9 @@ class AppState extends ChangeNotifier {
   double fontScale = 1.0;
   bool bold = false;
   bool animations = true;
+  int timeoutSeconds = 150; // strategic timeout length
+  int breakMinutes = 20; // innings break length
+  int timeoutsPerInnings = 2;
   int accent = 0xFF0B6E4F;
   int? textColor; // null = automatic
   ThemeMode mode = ThemeMode.system;
@@ -23,6 +26,9 @@ class AppState extends ChangeNotifier {
     fontScale = p.getDouble('fs') ?? 1.0;
     bold = p.getBool('bold') ?? false;
     animations = p.getBool('anim') ?? true;
+    timeoutSeconds = p.getInt('to_s') ?? 150;
+    breakMinutes = p.getInt('br_m') ?? 20;
+    timeoutsPerInnings = p.getInt('to_n') ?? 2;
     accent = p.getInt('accent') ?? 0xFF0B6E4F;
     textColor = p.containsKey('tc') ? p.getInt('tc') : null;
     final mi = (p.getInt('mode') ?? 0).clamp(0, 2).toInt();
@@ -47,6 +53,9 @@ class AppState extends ChangeNotifier {
     await p.setDouble('fs', fontScale);
     await p.setBool('bold', bold);
     await p.setBool('anim', animations);
+    await p.setInt('to_s', timeoutSeconds);
+    await p.setInt('br_m', breakMinutes);
+    await p.setInt('to_n', timeoutsPerInnings);
     await p.setInt('accent', accent);
     if (textColor == null) {
       await p.remove('tc');
@@ -73,6 +82,21 @@ class AppState extends ChangeNotifier {
 
   void setBold(bool v) {
     bold = v;
+    _changed();
+  }
+
+  void setTimeoutSeconds(int v) {
+    timeoutSeconds = v;
+    _changed();
+  }
+
+  void setBreakMinutes(int v) {
+    breakMinutes = v;
+    _changed();
+  }
+
+  void setTimeoutsPerInnings(int v) {
+    timeoutsPerInnings = v;
     _changed();
   }
 
@@ -199,14 +223,34 @@ class AppState extends ChangeNotifier {
   // ---- player photos ----
   String _pk(String team, String player) => '$team\u0001$player';
 
-  String? photoFor(String team, String player) {
-    final p = photos[_pk(team, player)];
+  String _normName(String s) => s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  String? _existing(String? p) {
     if (p == null) return null;
     try {
       return File(p).existsSync() ? p : null;
     } catch (_) {
       return null;
     }
+  }
+
+  /// Photo for a player. Exact team+name first, then ignoring case/spaces,
+  /// then the same player name in any team.
+  String? photoFor(String team, String player) {
+    final exact = _existing(photos[_pk(team, player)]);
+    if (exact != null) return exact;
+    final nt = _normName(team), np = _normName(player);
+    String? anyTeam;
+    for (final e in photos.entries) {
+      final i = e.key.indexOf('\u0001');
+      if (i < 0) continue;
+      if (_normName(e.key.substring(i + 1)) != np) continue;
+      final path = _existing(e.value);
+      if (path == null) continue;
+      if (_normName(e.key.substring(0, i)) == nt) return path;
+      anyTeam ??= path;
+    }
+    return anyTeam;
   }
 
   Future<void> _savePhotos() async {

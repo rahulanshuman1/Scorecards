@@ -110,10 +110,23 @@ class Retirement {
       Retirement(j['n'], j['r'], j['a'], j['s']);
 }
 
+/// A strategic timeout taken during an innings.
+class TimeoutRec {
+  final int atLegal; // legal balls bowled when it was taken
+  final String by;
+  final int seconds;
+  TimeoutRec(this.atLegal, this.by, this.seconds);
+  String get overLabel => '${atLegal ~/ 6}.${atLegal % 6}';
+
+  Map<String, dynamic> toJson() => {'a': atLegal, 'b': by, 's': seconds};
+  factory TimeoutRec.fromJson(Map<String, dynamic> j) => TimeoutRec(j['a'], j['b'], j['s']);
+}
+
 class Innings {
   List<Ball> balls;
   String? striker, nonStriker, bowler;
   List<Retirement> retired;
+  List<TimeoutRec> timeouts;
 
   Innings({
     List<Ball>? balls,
@@ -121,8 +134,10 @@ class Innings {
     this.nonStriker,
     this.bowler,
     List<Retirement>? retired,
+    List<TimeoutRec>? timeouts,
   })  : balls = balls ?? [],
-        retired = retired ?? [];
+        retired = retired ?? [],
+        timeouts = timeouts ?? [];
 
   /// Retire the striker (or non-striker) hurt and bring in [replacement].
   void retire(bool strikerOut, String replacement) {
@@ -272,12 +287,16 @@ class Innings {
         'balls': balls.map((b) => b.toJson()).toList(),
         's': striker, 'n': nonStriker, 'bw': bowler,
         'ret': retired.map((r) => r.toJson()).toList(),
+        'to': timeouts.map((t) => t.toJson()).toList(),
       };
   factory Innings.fromJson(Map<String, dynamic> j) => Innings(
         balls: (j['balls'] as List).map((b) => Ball.fromJson(Map<String, dynamic>.from(b))).toList(),
         striker: j['s'], nonStriker: j['n'], bowler: j['bw'],
         retired: ((j['ret'] ?? []) as List)
             .map((r) => Retirement.fromJson(Map<String, dynamic>.from(r)))
+            .toList(),
+        timeouts: ((j['to'] ?? []) as List)
+            .map((t) => TimeoutRec.fromJson(Map<String, dynamic>.from(t)))
             .toList(),
       );
 }
@@ -377,6 +396,9 @@ class CricketMatch extends SportMatch {
         sb.writeln('$nm${_p(b.runs, 5)}${_p(b.balls, 5)}${_p(b.fours, 5)}${_p(b.sixes, 5)}${_p(b.sr.toStringAsFixed(1), 7)}  ${b.how ?? ''}');
       }
       sb.writeln('Extras: ${i.extras}   Total: ${i.runs}/${i.wickets} (${i.overs} ov)');
+      for (final t in i.timeouts) {
+        sb.writeln('Strategic timeout at ${t.overLabel} ov (${t.by})');
+      }
       sb.writeln();
       sb.writeln('${'Bowler'.padRight(16)}${_p('O', 6)}${_p('R', 5)}${_p('W', 4)}${_p('Econ', 7)}');
       for (final b in i.bowling) {

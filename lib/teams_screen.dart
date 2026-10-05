@@ -31,11 +31,21 @@ Future<String?> _prompt(BuildContext context, String title, {String initial = ''
   );
 }
 
-Future<void> _pickPhoto(AppState s, String team, String player) async {
-  final r = await FilePicker.platform.pickFiles(type: FileType.image);
-  if (r == null || r.files.isEmpty) return;
-  final p = r.files.single.path;
-  if (p != null) await s.setPhoto(team, player, p);
+Future<void> _pickPhoto(BuildContext context, AppState s, String team, String player) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final r = await FilePicker.platform.pickFiles(type: FileType.image);
+    if (r == null || r.files.isEmpty) return;
+    final p = r.files.single.path;
+    if (p == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Could not read the selected image')));
+      return;
+    }
+    await s.setPhoto(team, player, p);
+    messenger.showSnackBar(SnackBar(content: Text('Photo saved for $player')));
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Could not save photo: $e')));
+  }
 }
 
 Widget _avatar(String? path, int n) => CircleAvatar(
@@ -122,7 +132,7 @@ class TeamsScreen extends StatelessWidget {
                           ListTile(
                             dense: true,
                             leading: InkWell(
-                              onTap: () => _pickPhoto(s, e.key, e.value[i]),
+                              onTap: () => _pickPhoto(context, s, e.key, e.value[i]),
                               onLongPress: () => s.removePhoto(e.key, e.value[i]),
                               customBorder: const CircleBorder(),
                               child: _avatar(s.photoFor(e.key, e.value[i]), i + 1),
@@ -132,7 +142,7 @@ class TeamsScreen extends StatelessWidget {
                               IconButton(
                                 tooltip: 'Set photo',
                                 icon: const Icon(Icons.add_a_photo),
-                                onPressed: () => _pickPhoto(s, e.key, e.value[i]),
+                                onPressed: () => _pickPhoto(context, s, e.key, e.value[i]),
                               ),
                               IconButton(
                                 tooltip: 'Edit name',

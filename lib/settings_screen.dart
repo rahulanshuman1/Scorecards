@@ -128,6 +128,39 @@ class SettingsScreen extends StatelessWidget {
                   for (final c in _textColors)
                     _swatch(c, s.textColor == c, () => s.setTextColor(c)),
                 ]),
+                const SizedBox(height: 16),
+                const Text('Strategic timeout length'),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, children: [
+                  for (final v in [90, 120, 150, 180])
+                    ChoiceChip(
+                      label: Text('${v ~/ 60}:${(v % 60).toString().padLeft(2, '0')}'),
+                      selected: s.timeoutSeconds == v,
+                      onSelected: (_) => s.setTimeoutSeconds(v),
+                    ),
+                ]),
+                const SizedBox(height: 12),
+                const Text('Strategic timeouts per innings'),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, children: [
+                  for (final v in [1, 2, 3])
+                    ChoiceChip(
+                      label: Text('$v'),
+                      selected: s.timeoutsPerInnings == v,
+                      onSelected: (_) => s.setTimeoutsPerInnings(v),
+                    ),
+                ]),
+                const SizedBox(height: 12),
+                const Text('Innings break length'),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, children: [
+                  for (final v in [5, 10, 15, 20, 30, 45])
+                    ChoiceChip(
+                      label: Text('$v min'),
+                      selected: s.breakMinutes == v,
+                      onSelected: (_) => s.setBreakMinutes(v),
+                    ),
+                ]),
                 const SizedBox(height: 24),
                 OutlinedButton.icon(
                   onPressed: s.resetDisplay,

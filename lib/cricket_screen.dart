@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'app_state.dart';
+import 'break_screen.dart';
 import 'events_anim.dart';
 import 'export_xlsx.dart';
 import 'milestone_anim.dart';
@@ -151,6 +153,80 @@ class _CricketScreenState extends State<CricketScreen> {
   List<String> _batOptions(Innings i) {
     final used = i.batting.map((b) => b.name).toSet();
     return m.battingPlayers.where((p) => !used.contains(p)).toList();
+  }
+
+  Future<void> _timeout() async {
+    if (m.finished) return;
+    final i = m.now;
+    final limit = AppState.I.timeoutsPerInnings;
+    if (limit > 0 && i.timeouts.length >= limit) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Timeout limit reached'),
+          content: Text('All $limit strategic timeouts for this innings have been used. Start another one anyway?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start anyway')),
+          ],
+        ),
+      );
+      if (go != true) return;
+    }
+    if (!mounted) return;
+    final by = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Strategic timeout – called by'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, '${m.battingTeam} (batting)'),
+            child: Text('${m.battingTeam}  (batting team)'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, '${m.bowlingTeam} (bowling)'),
+            child: Text('${m.bowlingTeam}  (bowling team)'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'Mandatory broadcast timeout'),
+            child: const Text('Mandatory / broadcast timeout'),
+          ),
+        ],
+      ),
+    );
+    if (by == null || !mounted) return;
+    final secs = AppState.I.timeoutSeconds;
+    _do(() => i.timeouts.add(TimeoutRec(i.legalBalls, by, secs)));
+    await showBreak(
+      context,
+      match: m,
+      kind: BreakKind.timeout,
+      seconds: secs,
+      calledBy: by,
+      timeoutNo: i.timeouts.length,
+      timeoutTotal: limit,
+    );
+    if (mounted) _ensure();
+  }
+
+  Future<void> _inningsBreak() async {
+    await showBreak(
+      context,
+      match: m,
+      kind: BreakKind.innings,
+      seconds: AppState.I.breakMinutes * 60,
+    );
+    if (mounted) _ensure();
+  }
+
+  Future<void> _endInnings() async {
+    if (m.finished) return;
+    if (m.current == 0) {
+      _do(m.endInnings);
+      await _inningsBreak();
+    } else {
+      _act(m.endInnings);
+    }
   }
 
   List<String> _returning(Innings i) =>
@@ -303,6 +379,43 @@ class _CricketScreenState extends State<CricketScreen> {
     );
   }
 
+  Widget _face(String? name) {
+    if (name == null) return const SizedBox.shrink();
+    final p = AppState.I.photoFor(m.battingTeam, name);
+    return CircleAvatar(
+      radius: 16,
+      backgroundImage: p != null ? FileImage(File(p)) : null,
+      child: p == null ? Text(name.substring(0, 1).toUpperCase()) : null,
+    );
+  }
+
+  void _previewMilestone() {
+    if (!AppState.I.animations) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Animations are switched off in Display settings')));
+      return;
+    }
+    final i = m.now;
+    final name = i.striker ??
+        (m.battingPlayers.isNotEmpty ? m.battingPlayers.first : 'Sample Player');
+    BatStat? st;
+    for (final x in i.batting) {
+      if (x.name == name) st = x;
+    }
+    _fx.currentState?.show([],
+        milestone: MilestoneInfo(
+          name: name,
+          team: m.battingTeam,
+          runs: 50,
+          balls: st != null && st.balls > 0 ? st.balls : 32,
+          fours: st?.fours ?? 5,
+          sixes: st?.sixes ?? 2,
+          strikeRate: st != null && st.balls > 0 ? st.sr : 156.3,
+          milestone: 50,
+          photoPath: AppState.I.photoFor(m.battingTeam, name),
+        ));
+  }
+
   Widget _crease(Innings i) {
     BatStat? find(String? n) {
       for (final b in i.batting) {
@@ -327,8 +440,20 @@ class _CricketScreenState extends State<CricketScreen> {
 
     return Column(children: [
       Row(children: [
-        Expanded(child: Text(bat(i.striker, ' *'))),
-        Expanded(child: Text(bat(i.nonStriker, ''))),
+        Expanded(
+          child: Row(children: [
+            _face(i.striker),
+            const SizedBox(width: 6),
+            Expanded(child: Text(bat(i.striker, ' *'))),
+          ]),
+        ),
+        Expanded(
+          child: Row(children: [
+            _face(i.nonStriker),
+            const SizedBox(width: 6),
+            Expanded(child: Text(bat(i.nonStriker, ''))),
+          ]),
+        ),
       ]),
       const SizedBox(height: 4),
       Align(alignment: Alignment.centerLeft, child: Text('Bowling: ${bowl()}')),
@@ -419,7 +544,13 @@ class _CricketScreenState extends State<CricketScreen> {
           ...displayActions(context),
           PopupMenuButton<String>(
             onSelected: (v) {
-              if (v == 'xlsx') {
+              if (v == 'timeout') {
+                _timeout();
+              } else if (v == 'break') {
+                _inningsBreak();
+              } else if (v == 'preview') {
+                _previewMilestone();
+              } else if (v == 'xlsx') {
                 exportMatch(context, m);
               } else if (v == 'pdf') {
                 _pdf();
@@ -427,7 +558,14 @@ class _CricketScreenState extends State<CricketScreen> {
                 _copy();
               }
             },
-            itemBuilder: (_) => const [
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'timeout', child: Text('Strategic timeout')),
+              PopupMenuItem(
+                value: 'break',
+                enabled: m.current == 1,
+                child: const Text('Innings break'),
+              ),
+              const PopupMenuItem(value: 'preview', child: Text('Preview 50 animation')),
               PopupMenuItem(value: 'xlsx', child: Text('Export Excel (.xlsx)')),
               PopupMenuItem(value: 'pdf', child: Text('Export PDF / Print')),
               PopupMenuItem(value: 'copy', child: Text('Copy scorecard text')),
@@ -477,6 +615,15 @@ class _CricketScreenState extends State<CricketScreen> {
                   label: const Text('Select batters / bowler'),
                 ),
               ),
+            if (m.current == 0 && m.inningsOver && !m.finished)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: FilledButton.icon(
+                  onPressed: _endInnings,
+                  icon: const Icon(Icons.free_breakfast),
+                  label: const Text('Innings complete – start innings break'),
+                ),
+              ),
             const SizedBox(height: 8),
             const Text('This over'),
             Wrap(spacing: 6, children: [for (final b in i.currentOver) Chip(label: Text(b.label))]),
@@ -502,18 +649,25 @@ class _CricketScreenState extends State<CricketScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: m.finished ? null : () => _act(m.endInnings),
+                  onPressed: m.finished ? null : () => _endInnings(),
                   icon: const Icon(Icons.flag),
                   label: Text(m.current == 0 ? 'End innings' : 'End match'),
                 ),
               ),
             ]),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: (canScore && i.striker != null && i.nonStriker != null) ? _retire : null,
-              icon: const Icon(Icons.healing),
-              label: const Text('Retired hurt – replace batter'),
-            ),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
+                onPressed: canScore ? _timeout : null,
+                icon: const Icon(Icons.timer),
+                label: Text('Strategic timeout (${i.timeouts.length}/${AppState.I.timeoutsPerInnings})'),
+              ),
+              OutlinedButton.icon(
+                onPressed: (canScore && i.striker != null && i.nonStriker != null) ? _retire : null,
+                icon: const Icon(Icons.healing),
+                label: const Text('Retired hurt – replace batter'),
+              ),
+            ]),
             const SizedBox(height: 16),
             for (int k = 0; k <= m.current; k++) _inningsCard(k),
           ]),
