@@ -229,20 +229,33 @@ class AppState extends ChangeNotifier {
     _savePhotos();
   }
 
-  Future<void> setPhoto(String team, String player, String sourcePath) async {
+  Future<String> _newPhotoPath(String ext) async {
     final dir = await getApplicationDocumentsDirectory();
     final folder = Directory('${dir.path}${Platform.pathSeparator}player_photos');
     if (!await folder.exists()) await folder.create(recursive: true);
-    var ext = '';
-    final dot = sourcePath.lastIndexOf('.');
-    if (dot >= 0 && sourcePath.length - dot <= 6) ext = sourcePath.substring(dot);
-    final dest =
-        '${folder.path}${Platform.pathSeparator}${DateTime.now().microsecondsSinceEpoch}$ext';
-    await File(sourcePath).copy(dest);
+    if (ext.isNotEmpty && !ext.startsWith('.')) ext = '.$ext';
+    if (ext.length > 6) ext = '';
+    return '${folder.path}${Platform.pathSeparator}${DateTime.now().microsecondsSinceEpoch}$ext';
+  }
+
+  Future<void> _attachPhoto(String team, String player, String dest) async {
     _deleteFile(photos[_pk(team, player)]);
     photos[_pk(team, player)] = dest;
     notifyListeners();
     await _savePhotos();
+  }
+
+  Future<void> setPhoto(String team, String player, String sourcePath) async {
+    final dot = sourcePath.lastIndexOf('.');
+    final dest = await _newPhotoPath(dot >= 0 ? sourcePath.substring(dot) : '');
+    await File(sourcePath).copy(dest);
+    await _attachPhoto(team, player, dest);
+  }
+
+  Future<void> setPhotoBytes(String team, String player, List<int> bytes, String ext) async {
+    final dest = await _newPhotoPath(ext);
+    await File(dest).writeAsBytes(bytes);
+    await _attachPhoto(team, player, dest);
   }
 
   void removePhoto(String team, String player) {

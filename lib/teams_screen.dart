@@ -78,6 +78,11 @@ class TeamsScreen extends StatelessWidget {
                     label: const Text('Import Excel / CSV'),
                   ),
                   OutlinedButton.icon(
+                    onPressed: () => importPhotosByName(context),
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('Import photos (by file name)'),
+                  ),
+                  OutlinedButton.icon(
                     onPressed: () async {
                       final n = await _prompt(context, 'New team name');
                       if (n != null) s.addTeam(n);
@@ -93,6 +98,8 @@ class TeamsScreen extends StatelessWidget {
                     child: Text(
                       'Excel format: first row = headers "Team" and "Player", one row per player. '
                       'Or one sheet per team (sheet name = team, players in column A).\n'
+                      'Photos: place a picture over a player\'s row in the Excel file (Insert > Pictures > Place over cells) '
+                      'and it is imported with the player. Or use "Import photos" and pick many images named like the player, e.g. "Rahul Sharma.jpg".\n'
                       'Tap a team to edit it. Tap a player\'s circle (or the camera icon) to set a photo, long-press the circle to remove it. '
                       'Photos appear on the 50 / 100 / 150 animation. Changes apply to matches you start next; '
                       'matches already created keep their old names.',
