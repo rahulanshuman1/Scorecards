@@ -93,7 +93,8 @@ class _CricketScreenState extends State<CricketScreen> {
 
   // ---- player selection ----
 
-  Future<String?> _askName(String title, List<String> options) {
+  Future<String?> _askName(String title, List<String> options,
+      {List<String> returning = const []}) {
     final c = TextEditingController();
     return showDialog<String>(
       context: context,
@@ -121,6 +122,22 @@ class _CricketScreenState extends State<CricketScreen> {
                     ActionChip(label: Text(o), onPressed: () => Navigator.pop(ctx, o)),
                 ]),
               ),
+            if (returning.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Retired hurt – can return:'),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 6, children: [
+                    for (final o in returning)
+                      ActionChip(
+                        avatar: const Icon(Icons.replay, size: 18),
+                        label: Text(o),
+                        onPressed: () => Navigator.pop(ctx, o),
+                      ),
+                  ]),
+                ]),
+              ),
           ])),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Later')),
@@ -136,6 +153,42 @@ class _CricketScreenState extends State<CricketScreen> {
     return m.battingPlayers.where((p) => !used.contains(p)).toList();
   }
 
+  List<String> _returning(Innings i) =>
+      i.batting.where((b) => b.how == 'retired hurt').map((b) => b.name).toList();
+
+  Future<void> _retire() async {
+    final i = m.now;
+    if (m.finished || i.striker == null || i.nonStriker == null) return;
+    final strikerOut = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Retired hurt – who?'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('${i.striker} (striker)'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('${i.nonStriker} (non-striker)'),
+          ),
+        ],
+      ),
+    );
+    if (strikerOut == null) return;
+    final who = strikerOut ? i.striker! : i.nonStriker!;
+    final name = await _askName('Replace $who with', _batOptions(i), returning: _returning(i));
+    if (name == null) return;
+    if (name == i.striker || name == i.nonStriker) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('That batter is already at the crease')));
+      }
+      return;
+    }
+    _do(() => i.retire(strikerOut, name));
+  }
+
   List<String> _bowlOptions(Innings i) =>
       m.bowlingPlayers.isNotEmpty ? m.bowlingPlayers : i.bowlerNames;
 
@@ -146,11 +199,13 @@ class _CricketScreenState extends State<CricketScreen> {
       while (mounted && !m.finished && !m.inningsOver && m.now.needsPlayers) {
         final i = m.now;
         if (i.striker == null) {
-          final n = await _askName(i.balls.isEmpty ? 'Opening batter (striker)' : 'New batter', _batOptions(i));
+          final n = await _askName(i.balls.isEmpty ? 'Opening batter (striker)' : 'New batter', _batOptions(i),
+              returning: _returning(i));
           if (n == null) break;
           _do(() => i.striker = n);
         } else if (i.nonStriker == null) {
-          final n = await _askName(i.balls.isEmpty ? 'Opening batter (non-striker)' : 'New batter', _batOptions(i));
+          final n = await _askName(i.balls.isEmpty ? 'Opening batter (non-striker)' : 'New batter', _batOptions(i),
+              returning: _returning(i));
           if (n == null) break;
           _do(() => i.nonStriker = n);
         } else {
@@ -453,6 +508,12 @@ class _CricketScreenState extends State<CricketScreen> {
                 ),
               ),
             ]),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: (canScore && i.striker != null && i.nonStriker != null) ? _retire : null,
+              icon: const Icon(Icons.healing),
+              label: const Text('Retired hurt – replace batter'),
+            ),
             const SizedBox(height: 16),
             for (int k = 0; k <= m.current; k++) _inningsCard(k),
           ]),

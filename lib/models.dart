@@ -97,12 +97,55 @@ class BowlStat {
   double get econ => balls == 0 ? 0 : runs * 6 / balls;
 }
 
+/// A batter who retired hurt and was replaced at the crease.
+class Retirement {
+  final String name; // who retired
+  final String replacement; // who came in
+  final int atBall; // balls bowled in the innings when it happened
+  final bool wasStriker;
+  Retirement(this.name, this.replacement, this.atBall, this.wasStriker);
+
+  Map<String, dynamic> toJson() => {'n': name, 'r': replacement, 'a': atBall, 's': wasStriker};
+  factory Retirement.fromJson(Map<String, dynamic> j) =>
+      Retirement(j['n'], j['r'], j['a'], j['s']);
+}
+
 class Innings {
   List<Ball> balls;
   String? striker, nonStriker, bowler;
+  List<Retirement> retired;
 
-  Innings({List<Ball>? balls, this.striker, this.nonStriker, this.bowler})
-      : balls = balls ?? [];
+  Innings({
+    List<Ball>? balls,
+    this.striker,
+    this.nonStriker,
+    this.bowler,
+    List<Retirement>? retired,
+  })  : balls = balls ?? [],
+        retired = retired ?? [];
+
+  /// Retire the striker (or non-striker) hurt and bring in [replacement].
+  void retire(bool strikerOut, String replacement) {
+    final name = strikerOut ? striker : nonStriker;
+    if (name == null) return;
+    retired.add(Retirement(name, replacement, balls.length, strikerOut));
+    if (strikerOut) {
+      striker = replacement;
+    } else {
+      nonStriker = replacement;
+    }
+  }
+
+  bool _undoRetire() {
+    if (retired.isEmpty || retired.last.atBall < balls.length) return false;
+    final r = retired.removeLast();
+    if (r.wasStriker) {
+      striker = r.name;
+    } else {
+      nonStriker = r.name;
+    }
+    return true;
+  }
 
   int get runs => balls.fold(0, (s, b) => s + b.total);
   int get wickets => balls.where((b) => b.wicket).length;
@@ -154,6 +197,7 @@ class Innings {
   }
 
   void undo() {
+    if (_undoRetire()) return;
     if (balls.isEmpty) return;
     final b = balls.removeLast();
     striker = b.batter;
@@ -172,7 +216,21 @@ class Innings {
   List<BatStat> get batting {
     final map = <String, BatStat>{};
     BatStat s(String n) => map.putIfAbsent(n, () => BatStat(n));
-    for (final b in balls) {
+    final away = <String>{}; // retired hurt and not back at the crease
+    var ri = 0;
+    void applyRetirements(int upTo) {
+      while (ri < retired.length && retired[ri].atBall <= upTo) {
+        final r = retired[ri++];
+        s(r.name);
+        away.add(r.name);
+      }
+    }
+
+    for (var bi = 0; bi < balls.length; bi++) {
+      applyRetirements(bi);
+      final b = balls[bi];
+      away.remove(b.batter);
+      away.remove(b.nonStriker);
       final st = s(b.batter ?? 'Unknown');
       if (b.nonStriker != null) s(b.nonStriker!);
       st.runs += b.batterRuns;
@@ -183,8 +241,19 @@ class Innings {
       }
       if (b.wicket) s(b.out ?? 'Unknown').how = b.wkType ?? 'out';
     }
-    if (striker != null) s(striker!);
-    if (nonStriker != null) s(nonStriker!);
+    applyRetirements(balls.length);
+    if (striker != null) {
+      s(striker!);
+      away.remove(striker);
+    }
+    if (nonStriker != null) {
+      s(nonStriker!);
+      away.remove(nonStriker);
+    }
+    for (final n in away) {
+      final st = map[n];
+      if (st != null && st.how == null) st.how = 'retired hurt';
+    }
     return map.values.toList();
   }
 
@@ -202,10 +271,14 @@ class Innings {
   Map<String, dynamic> toJson() => {
         'balls': balls.map((b) => b.toJson()).toList(),
         's': striker, 'n': nonStriker, 'bw': bowler,
+        'ret': retired.map((r) => r.toJson()).toList(),
       };
   factory Innings.fromJson(Map<String, dynamic> j) => Innings(
         balls: (j['balls'] as List).map((b) => Ball.fromJson(Map<String, dynamic>.from(b))).toList(),
         striker: j['s'], nonStriker: j['n'], bowler: j['bw'],
+        retired: ((j['ret'] ?? []) as List)
+            .map((r) => Retirement.fromJson(Map<String, dynamic>.from(r)))
+            .toList(),
       );
 }
 
@@ -255,7 +328,7 @@ class CricketMatch extends SportMatch {
   }
 
   void undo() {
-    if (now.balls.isNotEmpty) {
+    if (now.balls.isNotEmpty || now.retired.isNotEmpty) {
       now.undo();
       finished = false;
     } else if (current == 1) {
